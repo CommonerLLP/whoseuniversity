@@ -58,7 +58,7 @@ const INSTITUTION_AGGREGATE_THRESHOLD = 10;
 import {
   getChecked, currentFilterState, filterHaystack,
   applyFilters, isReservedPost, applySort,
-  adPassesFilter, updateReactiveCounts,
+  adPassesFilter, updateReactiveCounts, lifecycleStatus,
 } from "./lib/filters.js";
 import {
   initMap, updateMapMarkers, typeLabel,
@@ -86,6 +86,12 @@ import {
   cardRankLine,
 } from "./lib/card-helpers.js";
 const TYPE_ORDER = ["IIT","IIM","PrivateUniversity","IISc","IISER","CentralUniversity","StateUniversity","NIT","IIIT"];
+const LIFECYCLE_LABELS = {
+  active: "Live",
+  stale: "Not freshly confirmed",
+  missing: "Missing from latest sweep",
+  closed: "Closed",
+};
 // TYPE_COLORS imported from lib/card-helpers.js.
 // SAVED + persistSaved live on state (lib/state.js) — accessed via state.SAVED.
 const SAVED = state.SAVED;
@@ -143,7 +149,8 @@ async function loadData() {
       try {
         const d = new Date(current.generated_at);
         const fmt = d.toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
-        updatedEl.textContent = `Last updated ${fmt} · ${state.ADS.length} listings tracked`;
+        const liveCount = state.ADS.filter(ad => lifecycleStatus(ad) === "active").length;
+        updatedEl.textContent = `Last updated ${fmt} · ${liveCount} live listings · ${state.ADS.length} retained records`;
       } catch { updatedEl.textContent = `Last updated ${current.generated_at}`; }
     }
   } catch (e) {
@@ -212,9 +219,17 @@ function populateFilters() {
   const search = document.getElementById("search");
   if (search) search.value = "";
   const typeCounts = {}, stateCounts = {}, fieldCounts = {}, qualityCounts = { hss: 0, "non-hss": 0, other: 0 };
+  const typeOptions = new Set(), stateOptions = new Set(), fieldOptions = new Set();
+  const lifecycleCounts = { active: 0, stale: 0, missing: 0, closed: 0 };
   let facultyTotal = 0, associateTotal = 0, fullTotal = 0, researchTotal = 0, visitingTotal = 0;
   for (const ad of state.ADS) {
+    const life = lifecycleStatus(ad);
+    lifecycleCounts[life] = (lifecycleCounts[life] || 0) + 1;
     const inst = state.INSTITUTIONS[ad.institution_id] || {};
+    if (inst.type) typeOptions.add(inst.type);
+    if (inst.state) stateOptions.add(inst.state);
+    for (const field of fieldTags(ad)) fieldOptions.add(field);
+    if (life !== "active") continue;
     if (inst.type) typeCounts[inst.type] = (typeCounts[inst.type] || 0) + 1;
     if (inst.state) stateCounts[inst.state] = (stateCounts[inst.state] || 0) + 1;
     for (const field of fieldTags(ad)) fieldCounts[field] = (fieldCounts[field] || 0) + 1;
@@ -227,8 +242,8 @@ function populateFilters() {
   }
 
   const orderedFields = [
-    ...FIELD_ORDER.filter(f => fieldCounts[f]),
-    ...Object.keys(fieldCounts).filter(f => !FIELD_ORDER.includes(f)).sort(),
+    ...FIELD_ORDER.filter(f => fieldOptions.has(f)),
+    ...[...fieldOptions].filter(f => !FIELD_ORDER.includes(f)).sort(),
   ];
   // Default to none checked. "No selection = no constraint" is the same
   // semantics every other facet uses, and it keeps the active-filter chip
@@ -236,7 +251,7 @@ function populateFilters() {
   renderCheckboxes("filter-hss", orderedFields.map(f => ({
     value: f,
     label: f,
-    count: fieldCounts[f],
+    count: fieldCounts[f] || 0,
     checked: false,
   })));
 
@@ -251,18 +266,25 @@ function populateFilters() {
     { value: "other", label: QUALITY_LABELS.other, count: qualityCounts.other, checked: false },
   ]);
 
+  renderCheckboxes("filter-lifecycle", ["active", "stale", "missing", "closed"].map(value => ({
+    value,
+    label: LIFECYCLE_LABELS[value],
+    count: lifecycleCounts[value] || 0,
+    checked: false,
+  })));
+
   // Render only types that actually appear in the data. TYPE_ORDER pins
   // display order for known types; any unknown types get appended in the
   // order they first appear so we don't silently drop e.g. "Other" or new
   // categories added to the registry.
   const orderedTypes = [
-    ...TYPE_ORDER.filter(t => typeCounts[t]),
-    ...Object.keys(typeCounts).filter(t => !TYPE_ORDER.includes(t)).sort(),
+    ...TYPE_ORDER.filter(t => typeOptions.has(t)),
+    ...[...typeOptions].filter(t => !TYPE_ORDER.includes(t)).sort(),
   ];
   renderCheckboxes("filter-type", orderedTypes.map(t => ({
     value: t,
     label: typeLabel(t),
-    count: typeCounts[t],
+    count: typeCounts[t] || 0,
   })));
 
   document.getElementById("cnt-faculty").textContent = facultyTotal;
@@ -272,7 +294,7 @@ function populateFilters() {
   document.getElementById("cnt-visiting").textContent = visitingTotal;
 
   renderCheckboxes("filter-state",
-    Object.keys(stateCounts).sort().map(s => ({ value: s, label: s, count: stateCounts[s] }))
+    [...stateOptions].sort().map(s => ({ value: s, label: s, count: stateCounts[s] || 0 }))
   );
 }
 
@@ -288,7 +310,7 @@ function wireEvents() {
     window._mapListKey = mapListKey;
   };
 
-  for (const id of ["filter-hss","filter-quality","filter-type","filter-posgroup","filter-state"]) {
+  for (const id of ["filter-hss","filter-quality","filter-lifecycle","filter-type","filter-posgroup","filter-state"]) {
     document.getElementById(id).addEventListener("change", render);
   }
   document.getElementById("search").addEventListener("input", () => {
@@ -363,6 +385,9 @@ function wireEvents() {
         window._reservedOnly = !window._reservedOnly;
       } else if (key === "archive") {
         window._includeArchive = !window._includeArchive;
+        if (!window._includeArchive) {
+          document.querySelectorAll("#filter-lifecycle input").forEach(el => { el.checked = false; });
+        }
       } else {
         const cfg = QUICK_FILTERS[key];
         if (!cfg) return;
@@ -630,6 +655,7 @@ function render() {
   // and calls renderAdList directly, so its bump survives.
   renderLimit = RENDER_PAGE_SIZE;
   const st = currentFilterState();
+  document.querySelectorAll(".history-filter").forEach(el => { el.hidden = !window._includeArchive; });
   const filtered = applySort(applyFilters(st), st.sort);
 
 
@@ -658,6 +684,7 @@ function renderActiveFilters(st) {
     for (const v of fieldsArr) chips.push({ kind: "hss", val: v, label: v });
   }
   for (const v of st.statuses) chips.push({ kind: "quality", val: v, label: QUALITY_LABELS[v] || v });
+  for (const v of st.lifecycleStatuses) chips.push({ kind: "lifecycle", val: v, label: LIFECYCLE_LABELS[v] || v });
   for (const v of st.types) chips.push({ kind: "type", val: v, label: typeLabel(v) });
   for (const v of st.posGroups) {
     const POS_LABEL = { faculty: "Asst Prof", associate: "Assoc Prof", full: "Full Prof", research: "Postdoc" };
@@ -695,7 +722,7 @@ function renderActiveFilters(st) {
         document.querySelectorAll("#filter-hss input").forEach(el => el.checked = false);
         window._fieldsExpanded = false;
       } else {
-        const mapId = { hss: "filter-hss", quality: "filter-quality", type: "filter-type", posgroup: "filter-posgroup", state: "filter-state" }[kind];
+        const mapId = { hss: "filter-hss", quality: "filter-quality", lifecycle: "filter-lifecycle", type: "filter-type", posgroup: "filter-posgroup", state: "filter-state" }[kind];
         const box = document.querySelector(`#${mapId} input[value="${CSS.escape(val)}"]`);
         if (box) box.checked = false;
       }
@@ -704,15 +731,16 @@ function renderActiveFilters(st) {
   });
   document.getElementById("clear-filters").addEventListener("click", () => {
     setSearchValue("");
-    ["filter-hss","filter-quality","filter-type","filter-posgroup","filter-state"].forEach(id =>
+    ["filter-hss","filter-quality","filter-lifecycle","filter-type","filter-posgroup","filter-state"].forEach(id =>
       document.querySelectorAll(`#${id} input`).forEach(el => el.checked = false));
+    window._includeArchive = false;
     window._fieldsExpanded = false;
     render();
   });
 }
 
 function renderSummary(filtered, st) {
-  const active = st.fields.size + st.statuses.size + st.types.size + st.posGroups.size + st.states.size + (st.query ? 1 : 0);
+  const active = st.fields.size + st.statuses.size + st.lifecycleStatuses.size + st.types.size + st.posGroups.size + st.states.size + (st.query ? 1 : 0) + (window._includeArchive ? 1 : 0);
   const el = document.getElementById("summary-row");
 
   // Lead with what a reader actually asks: how many institutions are
@@ -734,9 +762,11 @@ function renderSummary(filtered, st) {
   el.appendChild(document.createTextNode(" positions "));
   const muted = document.createElement("span");
   muted.style.color = "var(--muted-soft)";
-  muted.textContent = filtered.length === state.ADS.length
-    ? `(${filtered.length} advertisements)`
-    : `(${filtered.length} advertisement${filtered.length !== 1 ? "s" : ""} of ${state.ADS.length})`;
+  const activeTotal = state.ADS.filter(ad => lifecycleStatus(ad) === "active").length;
+  const denominator = window._includeArchive ? state.ADS.length : activeTotal;
+  muted.textContent = filtered.length === denominator
+    ? `(${filtered.length} ${window._includeArchive ? "retained" : "live"} advertisement${filtered.length !== 1 ? "s" : ""})`
+    : `(${filtered.length} advertisement${filtered.length !== 1 ? "s" : ""} of ${denominator}${window._includeArchive ? " retained" : " live"})`;
   el.appendChild(muted);
   if (active > 0) {
     el.appendChild(document.createTextNode(" "));
@@ -757,7 +787,7 @@ function renderSummary(filtered, st) {
   if (adsEl) {
     const cfheiAds = state.ADS.filter(a => {
       const inst = state.INSTITUTIONS[a.institution_id];
-      return inst && inst.type !== "PrivateUniversity";
+      return lifecycleStatus(a) === "active" && inst && inst.type !== "PrivateUniversity";
     }).length;
     adsEl.textContent = cfheiAds || "—";
   }
@@ -777,6 +807,8 @@ function updateSelCounts(st) {
   };
   setPill("selcnt-hss",      st.fields.size,    "field");
   setPill("selcnt-quality",  st.statuses.size,  "quality");
+  setPill("selcnt-lifecycle", st.lifecycleStatuses.size, "lifecycle");
+  setPill("selcnt-archive", window._includeArchive ? 1 : 0, "archive");
   setPill("selcnt-type",     st.types.size,     "type");
   setPill("selcnt-posgroup", st.posGroups.size, "posgroup");
   setPill("selcnt-state",    st.states.size,    "state");
@@ -819,10 +851,11 @@ function renderAdList(filtered) {
         </div>`;
       document.getElementById("empty-clear-filters")?.addEventListener("click", () => {
         document.getElementById("search").value = "";
-        ["filter-hss","filter-quality","filter-type","filter-posgroup","filter-state"].forEach(id =>
+        ["filter-hss","filter-quality","filter-lifecycle","filter-type","filter-posgroup","filter-state"].forEach(id =>
           document.querySelectorAll(`#${id} input`).forEach(el => { el.checked = false; }));
         window._fieldsExpanded = false;
         window._reservedOnly = false;
+        window._includeArchive = false;
         document.getElementById("chip-reserved")?.setAttribute("aria-pressed", "false");
         render();
       });

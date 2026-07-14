@@ -131,9 +131,9 @@
     Reserved posts <span class="sel-pill" id="selcnt-reserved" hidden></span>
   </button>
 
-  <button id="chip-archive" class="quick-chip" type="button" data-quick="archive" aria-pressed="false" title="Include historical/closed ad postings from the archive">
+  <button id="chip-archive" class="quick-chip" type="button" data-quick="archive" aria-pressed="false" title="Show retained historical records: stale, missing, and closed advertisements">
     <span class="quick-chip-dot"></span>
-    Include Archive <span class="sel-pill" id="selcnt-archive" hidden></span>
+    History <span class="sel-pill" id="selcnt-archive" hidden></span>
   </button>
 
   <div class="filter-dd" data-key="field">
@@ -149,6 +149,14 @@
     <div class="popover" id="popover-quality" role="group" aria-label="Subject area filter options">
       <div id="filter-quality" class="filter-group"></div>
       <div class="popover-foot"><button type="button" data-clear="filter-quality">Clear</button></div>
+    </div>
+  </div>
+
+  <div class="filter-dd history-filter" data-key="lifecycle" hidden>
+    <button class="filter-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="popover-lifecycle">Status <span class="sel-pill" id="selcnt-lifecycle" hidden></span><span class="chev">▾</span></button>
+    <div class="popover" id="popover-lifecycle" role="group" aria-label="Listing status filter options">
+      <div id="filter-lifecycle" class="filter-group"></div>
+      <div class="popover-foot"><button type="button" data-clear="filter-lifecycle">Clear</button></div>
     </div>
   </div>
 
