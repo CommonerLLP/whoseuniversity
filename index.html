@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Content Security Policy: last-line browser-side defence against
+     stored XSS through poisoned scrape data. Allowlists scripts to self
+     + Leaflet@unpkg, styles to self + Leaflet/Google Fonts CSS +
+     inline styles (the dashboard currently uses ~140 inline
+     style="..." attributes; can be tightened later by replacing with
+     classes). Connections locked to self + OSM tile hosts. Frames
+     blocked (clickjacking guard). base-uri locked, form-action
+     blocked, object-src blocked. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://*.tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'" />
+<title>Whose University? · Academic work and vacancy disclosure in India</title>
+<meta name="description" content="Academic-work openings in India, paired with parliamentary-record analysis of faculty-vacancy disclosure. Compiled from public recruitment notices for research and reference; verify with the issuing institution before applying." />
+<link rel="canonical" href="https://whoseuniversity.org/" />
+
+<!-- Favicon: SVG scales cleanly at all sizes; oxblood rounded-square, ivory "?" -->
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="theme-color" content="#7a1620" />
+
+<!-- Open Graph + Twitter card metadata for social sharing -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Whose University?" />
+<meta property="og:title" content="Whose University? — Academic work and vacancy disclosure in India" />
+<meta property="og:description" content="Faculty, visiting, and postdoctoral positions across Indian HEIs, paired with parliamentary-record analysis of faculty-vacancy disclosure. Research and reference only — verify with the issuing institution before applying." />
+<meta property="og:url" content="https://whoseuniversity.org/" />
+<meta property="og:locale" content="en_IN" />
+<meta property="og:image" content="https://whoseuniversity.org/og.svg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Whose University? — public-interest research on India's higher-education institutions" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Whose University? — Academic work and vacancy disclosure in India" />
+<meta name="twitter:description" content="Academic-work openings in India, compiled from public recruitment notices. Research and reference only; verify with the issuing institution before applying." />
+<meta name="twitter:image" content="https://whoseuniversity.org/og.png" />
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- Typography: switched the display face from Source Serif 4 (the Google
+     Fonts default pairing) to Newsreader by Production Type (Google
+     Fonts, OFL — fully FOSS). Newsreader was designed for screen news
+     consumption; it has stronger editorial register than Source Serif
+     and reads as a publication wordmark, not a docs-site default.
+     Inter and JetBrains Mono retained (both OFL/FOSS). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;0,6..72,800;1,6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" />
+<!-- Theme anti-flash: extracted to a same-origin file so CSP can keep
+     script-src locked to 'self' without 'unsafe-inline'. -->
+<script src="theme-init.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="sr-announcer" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+<a class="skip-link" href="#feed">Skip to listings</a>
+<div class="beta-banner" role="status">
+  <strong>Public Beta</strong> · Research project under active development. Data may be incomplete and features may change.
+</div>
+<header class="masthead masthead-compact">
+  <h1><a class="masthead-title masthead-home" href="https://whoseuniversity.org/" aria-label="Whose University home">Whose University?</a><span class="masthead-strapline">Academic work and vacancy disclosure in India.</span></h1>
+</header>
+
+<!-- ============================================================
+     Hero search (Phase-2): the primary find-a-job affordance.
+     Replaces the sidebar-search input. Quick chips toggle existing
+     filter checkboxes, so the sidebar UI and this UI stay in sync.
+     ============================================================ -->
+<!-- Hero search + quick-filter chips removed (per user, May 2026). All
+     filtering now happens via the horizontal filter strip directly below
+     the tab bar. The legacy `#search` hidden input still lives inside that
+     strip for any code path that reads its value. -->
+
+<!-- WAI-ARIA tablist pattern: role="tablist" sits on <nav> directly so the
+     visual flex layout (spacer + 4 middle tabs + tabs-right cluster) is
+     untouched. The theme-toggle is a non-tab button that lives inside the
+     tablist DOM-wise; AT announces it as "button, Toggle …" because it has
+     no role="tab", so it is not confused for a tab. Acceptable practical
+     deviation from "only tabs as children" in exchange for not breaking
+     the centred-cluster layout. -->
+<nav class="tabs" id="tabs" role="tablist" aria-label="Sections">
+  <span class="tabs-spacer" aria-hidden="true"></span>
+  <button role="tab" type="button" id="tab-listings"  aria-selected="true"  aria-controls="listings-tab"  tabindex="0"  class="active" data-tab="listings">Vacancies <span class="tab-count" id="count-listings"></span></button>
+  <button role="tab" type="button" id="tab-map"       aria-selected="false" aria-controls="map-tab"       tabindex="-1" data-tab="map">Map</button>
+  <button role="tab" type="button" id="tab-vacancies" aria-selected="false" aria-controls="vacancies-tab" tabindex="-1" data-tab="vacancies">The Gap</button>
+  <button role="tab" type="button" id="tab-resources" aria-selected="false" aria-controls="resources-tab" tabindex="-1" data-tab="resources">Resources</button>
+  <button role="tab" type="button" id="tab-about"     aria-selected="false" aria-controls="about-tab"     tabindex="-1" data-tab="about">About</button>
+  <span class="tabs-right">
+    <button role="tab" type="button" id="tab-saved" aria-selected="false" aria-controls="saved-tab" tabindex="-1" data-tab="saved">Saved <span class="tab-count" id="count-saved"></span></button>
+    <!-- Coverage is an internal monitoring dashboard — kept reachable via the
+         URL hash `#coverage` for maintainers, but removed from public nav so
+         end users aren't confused by parser-status noise. -->
+    <button class="theme-toggle" type="button" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☾</button>
+  </span>
+</nav>
+
+<!-- ============================================================
+     HORIZONTAL FILTER STRIP (Phase-2.1, May 2026).
+     Replaces the left sidebar. Each <div class="filter-dd"> wraps a
+     trigger button + a popover containing the existing checkbox-group
+     markup. The filter-group IDs (`filter-hss`, `filter-quality`,
+     `filter-type`, `filter-posgroup`, `filter-state`) are preserved so
+     all the JS that reads them keeps working without rewiring.
+     The `#search` hidden input also stays — it's the value the JS reads
+     when computing `currentFilterState().query`.
+     ============================================================ -->
+<div class="filter-strip" id="filter-strip">
+  <span class="strip-label">Filter:</span>
+  <label class="filter-search" for="search">
+    <span class="search-ico" aria-hidden="true">⌕</span>
+    <input id="search" type="search" value="" autocomplete="off" placeholder="Search ML, postdoc, STS, policy…" aria-label="Search advertisements" />
+  </label>
+
+  <button id="chip-closing-soon" class="quick-chip" type="button" data-quick="closing-soon" aria-pressed="false" title="Show ads with deadlines in the next 30 days">
+    <span class="quick-chip-dot"></span>
+    Closing soon <span class="sel-pill" id="selcnt-closing-soon" hidden></span>
+  </button>
+
+  <!-- Reserved posts toggle: a first-class chip for the dashboard's most
+       politically loaded filter. When active, narrows to ads with explicit
+       per-post reservation roster counts OR detected Special Recruitment
+       Drives. Designed for users who specifically want ads where reservation
+       has been operationalised, not merely cited as policy. -->
+  <button id="chip-reserved" class="quick-chip" type="button" data-quick="reserved" aria-pressed="false" title="Show only ads where reservation is operationalised — per-post counts published or Special Recruitment Drive">
+    <span class="quick-chip-dot"></span>
+    Reserved posts <span class="sel-pill" id="selcnt-reserved" hidden></span>
+  </button>
+
+  <button id="chip-archive" class="quick-chip" type="button" data-quick="archive" aria-pressed="false" title="Include historical/closed ad postings from the archive">
+    <span class="quick-chip-dot"></span>
+    Include Archive <span class="sel-pill" id="selcnt-archive" hidden></span>
+  </button>
+
+  <div class="filter-dd" data-key="field">
+    <button class="filter-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="popover-field">Discipline <span class="sel-pill" id="selcnt-hss" hidden></span><span class="chev">▾</span></button>
+    <div class="popover" id="popover-field" role="group" aria-label="Discipline filter options">
+      <div id="filter-hss" class="filter-group scrollable"></div>
+      <div class="popover-foot"><button type="button" data-clear="filter-hss">Clear</button></div>
+    </div>
+  </div>
+
+  <div class="filter-dd" data-key="quality">
+    <button class="filter-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="popover-quality">Subject area <span class="sel-pill" id="selcnt-quality" hidden></span><span class="chev">▾</span></button>
+    <div class="popover" id="popover-quality" role="group" aria-label="Subject area filter options">
+      <div id="filter-quality" class="filter-group"></div>
+      <div class="popover-foot"><button type="button" data-clear="filter-quality">Clear</button></div>
+    </div>
+  </div>
+
+  <div class="filter-dd" data-key="posgroup">
+    <button class="filter-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="popover-posgroup">Position <span class="sel-pill" id="selcnt-posgroup" hidden></span><span class="chev">▾</span></button>
+    <div class="popover" id="popover-posgroup" role="group" aria-label="Position filter options">
+      <div id="filter-posgroup" class="filter-group">
+        <label><input type="checkbox" value="faculty" /><span class="grow">Assistant Professor</span><span class="cnt" id="cnt-faculty"></span></label>
+        <label><input type="checkbox" value="associate" /><span class="grow">Associate Professor</span><span class="cnt" id="cnt-associate"></span></label>
+        <label><input type="checkbox" value="full" /><span class="grow">Professor (Full)</span><span class="cnt" id="cnt-full"></span></label>
+        <label><input type="checkbox" value="research" /><span class="grow">Postdoc / Research Fellow</span><span class="cnt" id="cnt-research"></span></label>
+        <label><input type="checkbox" value="visiting" /><span class="grow">Visiting Faculty</span><span class="cnt" id="cnt-visiting"></span></label>
+      </div>
+      <div class="popover-foot"><button type="button" data-clear="filter-posgroup">Clear</button></div>
+    </div>
+  </div>
+
+  <div class="filter-dd" data-key="type">
+    <button class="filter-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="popover-type">Institution type <span class="sel-pill" id="selcnt-type" hidden></span><span class="chev">▾</span></button>
+    <div class="popover" id="popover-type" role="group" aria-label="Institution type filter options">
+      <div id="filter-type" class="filter-group"></div>
+      <div class="popover-foot"><button type="button" data-clear="filter-type">Clear</button></div>
+    </div>
+  </div>
+
+  <div class="filter-dd" data-key="state">
+    <button class="filter-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="popover-state">Location <span class="sel-pill" id="selcnt-state" hidden></span><span class="chev">▾</span></button>
+    <div class="popover" id="popover-state" role="group" aria-label="Location filter options">
+      <div id="filter-state" class="filter-group scrollable"></div>
+      <div class="popover-foot"><button type="button" data-clear="filter-state">Clear</button></div>
+    </div>
+  </div>
+</div>
+
+<main>
+  <section id="feed">
+    <div id="listings-tab" role="tabpanel" aria-labelledby="tab-listings" tabindex="0">
+      <h2 class="sr-only">Vacancies</h2>
+
+      <!-- Headline anchored in the most recent partial disclosures the
+           Ministry has been forced to make. The 14,606 all-CHEI aggregate
+           remains the only comprehensive figure (Feb 2023, never updated).
+           Subsequent years have produced fragmented disclosures that we now
+           sum here: 4,889 CU teaching (Jul 2025) + 5,748 AIIMS faculty
+           (Feb 2026) ≈ 10,637 visible standing vacancies, plus IIT/IIM/NIT/
+           IIIT residuals that the Ministry refuses to disclose. -->
+      <!-- Compact vacancy-gap line. Numerator: 10,637 — partial CFHEI
+           disclosure (4,889 CU teaching Jul 2025 + 5,748 AIIMS Feb
+           2026). Denominator: live CFHEI ads only — private-university
+           postings are excluded so the ratio doesn't understate the
+           regression. -->
+      <aside class="vacancy-gap-banner vacancy-gap-banner-compact" id="vacancy-gap-banner" role="note">
+        <p class="vgb-line">
+          <strong class="vgb-num" id="vgb-vacant">10,637</strong> vacancies at India's public HEIs ·
+          only <strong class="vgb-num" id="vgb-ads">—</strong> being recruited for currently
+          <a class="vgb-link" href="#vacancies" data-tab-link="vacancies">→ The Gap</a>
+        </p>
+      </aside>
+
+      <div class="chipbar" id="active-filters"></div>
+
+      <div class="summary-row">
+        <div id="summary-row"></div>
+        <div class="sort-wrap">
+          <label for="sort" style="color:var(--muted); font-size:12px;">Sort</label>
+          <select id="sort">
+            <option value="closing">Closing first</option>
+            <option value="closing-last">Closing last</option>
+            <option value="field">Discipline</option>
+            <option value="inst">Institution (A-Z)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="banner" role="note" id="verify-banner">
+        <span class="warn-ico">⚠</span>
+        <div>Deadlines are parsed heuristically — always click through to the original PDF before applying.</div>
+        <button type="button" id="dismiss-banner" title="Dismiss" aria-label="Dismiss">×</button>
+      </div>
+
+      <div class="feed-list" id="feed-items"></div>
+    </div>
+
+    <div id="saved-tab" role="tabpanel" aria-labelledby="tab-saved" tabindex="0" style="display:none;"><h2 class="sr-only">Saved listings</h2></div>
+
+    <div id="map-tab" role="tabpanel" aria-labelledby="tab-map" tabindex="0" style="display:none;">
+      <h2 class="sr-only">Institution map</h2>
+      <div class="map-summary" id="map-summary">
+        <div class="map-counts">
+          <span><span class="emph" id="map-inst-count">—</span> institutions</span>
+          <span>·</span>
+          <span><span class="emph" id="map-ad-count">—</span> matching ads</span>
+        </div>
+        <div class="map-active-chips" id="map-active-chips"></div>
+      </div>
+      <div id="map-container"></div>
+      <div class="map-legend" id="map-legend"></div>
+      <p class="map-disclaimer">Map tiles from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> (open data, ODbL). Boundary depictions may not conform to the official Survey of India maps or Government of India directives. This project uses open-source mapping for accessibility and reproducibility; no political claim over any territory is intended.</p>
+    </div>
+
+    <div id="vacancies-tab" role="tabpanel" aria-labelledby="tab-vacancies" tabindex="0" style="display:none;"><h2 class="sr-only">Vacancy data</h2></div>
+
+    <div id="resources-tab" role="tabpanel" aria-labelledby="tab-resources" tabindex="0" style="display:none;"><h2 class="sr-only">Resources for candidates</h2></div>
+
+    <!-- About / data notes — accessible via the colophon link, not via the
+         top-nav tablist, because it is a destination rather than a tool. The
+         compact footer that ships on every other tab gets replaced here by a
+         substantive piece of writing about what the project is, how the data
+         is built, the disclaimers in full, and how to cite. -->
+    <section id="about-tab" aria-labelledby="about-heading" tabindex="0" style="display:none;" class="about-page">
+      <h2 id="about-heading" class="about-h2">About this project</h2>
+
+      <p class="about-lede">
+        Whose University? tracks academic-work openings in India and examines
+        how faculty vacancies are disclosed in the parliamentary record. It
+        keeps two registers together: advertised recruitments and the public
+        record on vacancies in centrally-funded higher-education institutions.
+      </p>
+
+      <h3 class="about-h3">Vacancies</h3>
+      <p>
+        A feed of advertised positions across Central Universities, IITs,
+        IIMs, NITs, IIITs, AIIMS, and major private universities. Most
+        listings are scraped from institutional career pages; some are parsed
+        from PDFs; rare hand-entered records carry a yellow
+        <strong>⚑ manual entry</strong> badge. Each listing includes a
+        confidence grade.
+      </p>
+
+      <h3 class="about-h3">The Gap</h3>
+      <p>
+        An analysis of parliamentary questions on faculty vacancies in
+        centrally-funded HEIs, September 2020 to March 2026. In the strict
+        faculty-vacancy corpus, 252 questions were tabled across the Lok Sabha
+        and Rajya Sabha. One answer — RS AU365 of 23 July 2025, to Shri
+        Mallikarjun Kharge — disclosed vacancy by rank and category. Most
+        other answers substituted cumulative "Mission Mode" recruitment
+        counters for vacancy figures.
+      </p>
+
+      <h3 class="about-h3">Sources and data pipeline</h3>
+      <p><strong>Listings.</strong>
+        The listings page follows the career and recruitment pages of roughly
+        185 institutions. The site checks those pages on a schedule, keeps a
+        dated record of what it saw, and marks entries that have closed,
+        disappeared, or could not be confirmed in the latest sweep. The code
+        used to collect the listings is public.
+      </p>
+      <p><strong>The Gap corpus.</strong>
+        The Gap is based on Lok Sabha and Rajya Sabha questions and answers
+        published on the parliamentary websites. The analysis keeps the
+        questions that concern faculty vacancies in centrally-funded higher
+        education institutions: 252 strict matches, with 429 broader related
+        records. The charts are calculated from those public answers and
+        sourced in the bibliography on The Gap page.
+      </p>
+
+      <h3 class="about-h3">No warranty; verify before applying</h3>
+      <p>
+        Listings are scraped, parsed, and occasionally hand-entered from
+        public recruitment material. Errors are possible: stale links,
+        extraction mistakes, missing posts, or transcription gaps. Verify the
+        official advertisement and application portal before applying.
+      </p>
+
+      <h3 class="about-h3">Independence and use at own risk</h3>
+      <p>
+        The site is not affiliated with, endorsed by, or operated on behalf
+        of any institution listed. The maintainer makes no warranty about the
+        accuracy, completeness, currency, or availability of any position. The
+        site is an index, not an application intermediary, and stores no
+        application records.
+      </p>
+
+      <h3 class="about-h3">Analytical content</h3>
+      <p>
+        Material in <em>The Gap</em> is the maintainer's research
+        interpretation of publicly available parliamentary records, court
+        orders, and Ministry of Education communications, all cited in that
+        tab's bibliography. It is research-and-reference commentary, not legal
+        advice and not an allegation against any named individual.
+      </p>
+
+      <h3 class="about-h3">Citation and licence</h3>
+      <aside class="about-license" aria-label="Citation and licence terms">
+        <p>
+          Non-commercial reuse is permitted for research, teaching, journalism,
+          and public-interest work. Commercial use is not permitted.
+        </p>
+        <dl>
+          <div>
+            <dt>Code</dt>
+            <dd><a href="https://polyformproject.org/licenses/noncommercial/1.0.0/" target="_blank" rel="noopener">PolyForm Noncommercial 1.0.0</a></dd>
+          </div>
+          <div>
+            <dt>Data and analysis</dt>
+            <dd><a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a></dd>
+          </div>
+          <div>
+            <dt>Citation</dt>
+            <dd><em>Whose University?, whoseuniversity.org, accessed YYYY-MM-DD.</em></dd>
+          </div>
+        </dl>
+      </aside>
+
+      <h3 class="about-h3">Corrections</h3>
+      <p>
+        Open an issue at
+        <a class="github-link" href="https://github.com/commonerllp/academiaindia" target="_blank" rel="noopener" aria-label="GitHub repository: commonerllp/academiaindia">
+          <svg class="github-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <title>GitHub</title>
+            <path d="M8 0C3.58 0 0 3.67 0 8.2c0 3.62 2.29 6.69 5.47 7.77.4.08.55-.18.55-.4 0-.19-.01-.84-.01-1.53-2.01.38-2.53-.5-2.69-.96-.09-.24-.48-.96-.82-1.16-.28-.16-.68-.56-.01-.57.63-.01 1.08.59 1.23.83.72 1.24 1.87.89 2.33.68.07-.53.28-.89.51-1.09-1.78-.21-3.64-.91-3.64-4.04 0-.89.31-1.62.82-2.19-.08-.21-.36-1.04.08-2.16 0 0 .67-.22 2.2.84A7.4 7.4 0 0 1 8 3.95c.68 0 1.36.09 2 .28 1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.95.08 2.16.51.57.82 1.3.82 2.19 0 3.14-1.87 3.83-3.65 4.04.29.25.54.76.54 1.54 0 1.11-.01 2-.01 2.27 0 .22.15.48.55.4A8.09 8.09 0 0 0 16 8.2C16 3.67 12.42 0 8 0Z" />
+          </svg>
+          <span>GitHub</span>
+        </a>,
+        or write to the maintainer.
+      </p>
+
+    </section>
+
+    <div id="coverage-tab" style="display:none;">
+      <h2 class="sr-only">Scraper coverage</h2>
+      <p style="color:var(--muted); font-size:13px; margin-top:0;">How many institutions are being successfully scraped and when. Broken parsers mean those institutions are silently absent from the feed.</p>
+      <div id="coverage-summary"></div>
+      <table id="coverage-table">
+        <thead><tr><th>Institution</th><th>Parser</th><th>Status</th><th>HTTP</th><th style="text-align:right;">Ads</th><th>Note</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+  </section>
+</main>
+
+<!--
+  Compact colophon — appears at the foot of every tab. The full project
+  description, source notes, and disclaimer paragraphs live on the About
+  page (/#about); this footer carries only the shared site metadata:
+  the data-update line, the licence, and the link to About.
+-->
+<footer class="colophon">
+  <p class="colophon-meta-line">
+    <span id="colophon-updated">—</span>
+    · Code: PolyForm-NC&nbsp;1.0 · Data: CC&nbsp;BY-NC-SA&nbsp;4.0
+    · <a href="/#about" data-tab-link="about" class="colophon-about-link">About</a>
+    · <a class="github-link" href="https://github.com/commonerllp/academiaindia" target="_blank" rel="noopener" aria-label="GitHub repository: commonerllp/academiaindia" title="commonerllp/academiaindia">
+      <svg class="github-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M8 0C3.58 0 0 3.67 0 8.2c0 3.62 2.29 6.69 5.47 7.77.4.08.55-.18.55-.4 0-.19-.01-.84-.01-1.53-2.01.38-2.53-.5-2.69-.96-.09-.24-.48-.96-.82-1.16-.28-.16-.68-.56-.01-.57.63-.01 1.08.59 1.23.83.72 1.24 1.87.89 2.33.68.07-.53.28-.89.51-1.09-1.78-.21-3.64-.91-3.64-4.04 0-.89.31-1.62.82-2.19-.08-.21-.36-1.04.08-2.16 0 0 .67-.22 2.2.84A7.4 7.4 0 0 1 8 3.95c.68 0 1.36.09 2 .28 1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.95.08 2.16.51.57.82 1.3.82 2.19 0 3.14-1.87 3.83-3.65 4.04.29.25.54.76.54 1.54 0 1.11-.01 2-.01 2.27 0 .22.15.48.55.4A8.09 8.09 0 0 0 16 8.2C16 3.67 12.42 0 8 0Z" />
+      </svg>
+      <span>GitHub</span>
+    </a>
+  </p>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
