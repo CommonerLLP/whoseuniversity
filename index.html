@@ -10,8 +10,11 @@
      style="..." attributes; can be tightened later by replacing with
      classes). Connections locked to self + OSM tile hosts. Frames
      blocked (clickjacking guard). base-uri locked, form-action
-     blocked, object-src blocked. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://*.tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'" />
+     blocked, object-src blocked. The Cloudflare Web Analytics beacon
+     needs its script host in script-src and cloudflareinsights.com in
+     connect-src; the manual (non-proxied) beacon posts to
+     cloudflareinsights.com/cdn-cgi/rum rather than to this origin. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://static.cloudflareinsights.com/beacon.min.js; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://*.tile.openstreetmap.org https://cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'" />
 <title>Whose University? · Academic work and vacancy disclosure in India</title>
 <meta name="description" content="Academic-work openings in India, paired with parliamentary-record analysis of faculty-vacancy disclosure. Compiled from public recruitment notices for research and reference; verify with the issuing institution before applying." />
 <link rel="canonical" href="https://whoseuniversity.org/" />
@@ -411,5 +414,13 @@
 </footer>
 
 <script type="module" src="app.js"></script>
+
+<!-- Cloudflare Web Analytics. Manual beacon: the zone is DNS-only, so
+     automatic injection is unavailable and the beacon reports to
+     cloudflareinsights.com. Cookieless; no cross-site identifier.
+     type="module" keeps it from erroring in pre-2022 browsers.
+     No integrity attribute: Cloudflare does not version-pin this
+     script, so an SRI hash would break on their next release. -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "73688a7e3472457ba905b9a72505240c"}'></script>
 </body>
 </html>
