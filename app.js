@@ -86,6 +86,20 @@ import {
   cardRankLine,
 } from "./lib/card-helpers.js";
 const TYPE_ORDER = ["IIT","IIM","PrivateUniversity","IISc","IISER","CentralUniversity","StateUniversity","NIT","IIIT"];
+// `document_class` values that are not a job opening. commoner-probe 0.19.0
+// labels documents rather than dropping them, so the judgement lives here.
+// A corrigendum amends a real advertisement and is not itself an opening; the
+// advertisement it amends is carried as its own record.
+const NOT_AN_OPENING = new Set([
+  "results_notice",
+  "cancellation",
+  "corrigendum",
+  "exam_material",
+  "application_form",
+  "policy_document",
+  "sanctioned_posts",
+]);
+
 const LIFECYCLE_LABELS = {
   active: "Live",
   stale: "Not freshly confirmed",
@@ -136,6 +150,14 @@ async function loadData() {
       console.warn("Dropped invalid ad records from current.json", currentShape.invalid);
     }
     state.ADS = currentShape.ads.filter(ad => {
+      // A document that is not an advertisement is not an opening. Publishing a
+      // recruitment manual or a results notice as a live vacancy is a wrong
+      // claim about that institution's hiring.
+      //
+      // Drop by NAME, never by "keep only advertisement". `document_class`
+      // arrived in commoner-probe 0.19.0, so every record written before it is
+      // null. Keeping only `advertisement` would erase the whole history.
+      if (NOT_AN_OPENING.has(ad.document_class)) return false;
       const sp = getStructuredPosition(ad);
       const pt = sp ? sp.post_type : ad.post_type;
       return pt !== "NonFaculty";
