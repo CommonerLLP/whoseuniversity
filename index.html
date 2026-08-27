@@ -415,9 +415,13 @@
 
 <script type="module" src="app.js"></script>
 
-<!-- Cloudflare Web Analytics. Manual beacon: the zone is DNS-only, so
-     automatic injection is unavailable and the beacon reports to
-     cloudflareinsights.com. Cookieless; no cross-site identifier.
+<!-- Cloudflare Web Analytics, manual beacon. Cookieless, and it carries no
+     cross-site identifier. `send.to` posts same-origin, because the zone is
+     now proxied and a cross-origin post to cloudflareinsights.com was blocked
+     by CORS from 2026-05-04 to 2026-08-23.
+     The zone also has `auto_install` on. The edge serves exactly one beacon
+     tag, checked on 2026-08-26, so the two paths do not double-report.
+     Re-check that count before removing either path.
      type="module" keeps it from erroring in pre-2022 browsers.
      No integrity attribute: Cloudflare does not version-pin this
      script, so an SRI hash would break on their next release. -->

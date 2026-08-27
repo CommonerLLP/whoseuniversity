@@ -441,10 +441,11 @@
     "ad_format_guess": "RollingHTML",
     "parser": "iim_recruit",
     "coverage_status": "Active",
-    "notes": "user_agent set 2026-08-23. iimb.ac.in sits behind a WAF that refuses on the User-Agent string alone: every commoner-probe spelling returns 403, a browser string returns 200, and Accept headers change nothing. robots_override is deliberately NOT set here. With the browser User-Agent the robots fetch returns the real answer, which is allow-all, so the override would suppress a live signal. Measured against the published commoner-probe 0.17.0: ok (1 ad) with and without the override. Requires commoner-probe >= 0.17.0; the field is inert on 0.16.0. See _session_for's docstring in commoner_probe/academia/probe.py.",
+    "notes": "Rolling faculty recruitment across 11 areas. No fixed deadline; applications are reviewed as received. See the official page for area lists, CPP and Management Communication requirements.",
     "lat": 12.93,
     "lon": 77.594,
-    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+    "operational_note": "user_agent set 2026-08-23. iimb.ac.in refuses on the User-Agent string alone: every commoner-probe spelling returns 403, a browser string returns 200, Accept headers change nothing. robots_override deliberately NOT set: with a browser UA the robots fetch returns allow-all, so an override would suppress a live signal. Requires commoner-probe >= 0.17.0."
   },
   {
     "id": "iim-lucknow",
@@ -646,11 +647,13 @@
     "ad_format_guess": "Unknown",
     "parser": "iim_recruit",
     "coverage_status": "Active",
-    "notes": "user_agent set 2026-08-23, AND robots_override is still required. iimbg.ac.in sits behind an Azure Application Gateway that refuses on the User-Agent string alone. The browser User-Agent clears the page, but /robots.txt returns 403 to every User-Agent including a browser, carrying a '404 Not Found' body inside the 403. _get_robot_parser reads 401/403 as disallow-all, so no User-Agent reaches the real answer. Measured against the published commoner-probe 0.17.0: ok (1 ad) with the override, robots-blocked (0 ads) without it. Requires commoner-probe >= 0.17.0. See _session_for's docstring in commoner_probe/academia/probe.py.",
+    "notes": "Faculty recruitment; see the official careers page for current areas and terms.",
     "lat": 24.696,
     "lon": 84.988,
     "robots_override": true,
-    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+    "operational_note": "user_agent set 2026-08-23, AND robots_override is required. The Azure gateway refuses on the User-Agent alone, and /robots.txt returns 403 to every User-Agent including a browser, carrying a '404 Not Found' body inside the 403. No User-Agent reaches the real answer. Requires commoner-probe >= 0.17.0.",
+    "robots_override_reason": "No robots policy is published. The official careers page at iimbg.ac.in returns 403 for /robots.txt to every User-Agent, so no directive can be read."
   },
   {
     "id": "iim-nagpur",
@@ -1075,10 +1078,12 @@
     "parser": "private_university",
     "tls_verify": false,
     "coverage_status": "Active",
-    "notes": "robots_override set 2026-08-23 as a DELIBERATE maintainer decision, not a false positive. jobs.flame.edu.in serves a real robots.txt (HTTP 200, Salesforce stock file) carrying an explicit 'Disallow: /' for 'User-agent: *'. The site does refuse crawlers. The maintainer overrode it on public-interest grounds: these are public recruitment advertisements. Keep the honest User-Agent and the weekly rate limit. Revisit if FLAME objects.",
+    "notes": "Faculty openings listed on the FLAME jobs portal.",
     "lat": 18.525,
     "lon": 73.728,
-    "robots_override": true
+    "robots_override": true,
+    "operational_note": "robots_override set 2026-08-23 as a deliberate maintainer decision, not a false positive. jobs.flame.edu.in serves a real robots.txt (HTTP 200) with an explicit 'Disallow: /' for 'User-agent: *'. Overridden on public-interest grounds: these are public recruitment advertisements. Keep the honest User-Agent and the weekly rate limit.",
+    "robots_override_reason": "The official FLAME jobs portal publishes recruitment advertisements. Overridden on public-interest grounds by the maintainer."
   },
   {
     "id": "anna-university",

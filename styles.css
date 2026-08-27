@@ -1316,6 +1316,10 @@
     letter-spacing: 0.02em;
     white-space: nowrap;
   }
+
+/* An unread deadline is not a rolling call. Muted, so it does not read as an
+   invitation to apply at any time. See render-card.js statesNoDeadline(). */
+.deadline-unknown { opacity: .62; font-style: italic; }
   html[data-theme="dark"] .listing .deadline-rolling {
     background: rgba(194, 140, 80, 0.14);
     color: #d8a368;
